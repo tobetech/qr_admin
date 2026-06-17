@@ -55,26 +55,36 @@ export default function NewMachinePage() {
     return () => stopScanning()
   }, [])
 
-  async function startScanning() {
-    setScanError('')
+   async function startScanning() {
+  setScanError('')
 
-    if (!('BarcodeDetector' in window)) {
-      setScanError('เบราว์เซอร์นี้ไม่รองรับการสแกน QR กรุณากรอก MAC address ด้วยมือ')
-      return
-    }
+  if (!('BarcodeDetector' in window)) {
+    setScanError('เบราว์เซอร์นี้ไม่รองรับการสแกน QR กรุณากรอก MAC address ด้วยมือ')
+    return
+  }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      })
-      streamRef.current = stream
+  setScanning(true) // render <video> element ก่อน เพื่อให้ videoRef.current ไม่เป็น null
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' },
+    })
+    console.log('Got camera stream:', stream.getVideoTracks())
+    streamRef.current = stream
+
+    // รอ 1 frame ให้ video element mount เสร็จก่อน set srcObject
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream
+      videoRef.current.onloadedmetadata = () => {
+        console.log('Video metadata loaded:', videoRef.current?.videoWidth, videoRef.current?.videoHeight)
       }
-
-      setScanning(true)
+      await videoRef.current.play()
+      console.log('Video playing')
+    } else {
+      console.error('videoRef.current is null')
+    }
 
       // @ts-ignore - BarcodeDetector ไม่อยู่ใน TS lib มาตรฐานทุกเวอร์ชัน
       const detector = new BarcodeDetector({ formats: ['qr_code'] })
@@ -93,8 +103,11 @@ export default function NewMachinePage() {
         }
       }, 500)
     } catch (err: any) {
-      setScanError('ไม่สามารถเปิดกล้องได้: ' + err.message)
+    console.error('Camera error:', err)
+    setScanError('ไม่สามารถเปิดกล้องได้: ' + err.name + ' - ' + err.message)
+    setScanning(false)
     }
+  }
   }
 
   function stopScanning() {
