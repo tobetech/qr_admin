@@ -104,9 +104,16 @@ export default function DashboardPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-900">เครื่องของฉัน</h2>
-          </div>
+
+	<div className="flex items-center justify-between mb-3">
+  	   <h2 className="font-semibold text-gray-900">เครื่องของฉัน</h2>
+  	<button
+    	   onClick={() => router.push('/dashboard/machines/new')}
+    	   className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-indigo-700 active:scale-95 transition"
+ 	 >
+    	+ เพิ่มเครื่อง
+  	   </button>
+	</div>
 
           <div className="space-y-3">
             {machines.map(machine => (
