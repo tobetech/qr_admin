@@ -55,38 +55,49 @@ export default function NewMachinePage() {
     return () => stopScanning()
   }, [])
 
-   async function startScanning() {
-  setScanError('')
-
-  if (!('BarcodeDetector' in window)) {
-    setScanError('เบราว์เซอร์นี้ไม่รองรับการสแกน QR กรุณากรอก MAC address ด้วยมือ')
-    return
+  function stopScanning() {
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current)
+      scanIntervalRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+    setScanning(false)
   }
 
-  setScanning(true) // render <video> element ก่อน เพื่อให้ videoRef.current ไม่เป็น null
+  async function startScanning() {
+    setScanError('')
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' },
-    })
-    console.log('Got camera stream:', stream.getVideoTracks())
-    streamRef.current = stream
-
-    // รอ 1 frame ให้ video element mount เสร็จก่อน set srcObject
-    await new Promise(resolve => setTimeout(resolve, 50))
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream
-      videoRef.current.onloadedmetadata = () => {
-        console.log('Video metadata loaded:', videoRef.current?.videoWidth, videoRef.current?.videoHeight)
-      }
-      await videoRef.current.play()
-      console.log('Video playing')
-    } else {
-      console.error('videoRef.current is null')
+    if (!('BarcodeDetector' in window)) {
+      setScanError('เบราว์เซอร์นี้ไม่รองรับการสแกน QR กรุณากรอก MAC address ด้วยมือ')
+      return
     }
 
-      // @ts-ignore - BarcodeDetector ไม่อยู่ใน TS lib มาตรฐานทุกเวอร์ชัน
+    setScanning(true)
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      })
+      console.log('Got camera stream:', stream.getVideoTracks())
+      streamRef.current = stream
+
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.onloadedmetadata = () => {
+          console.log('Video metadata loaded:', videoRef.current?.videoWidth, videoRef.current?.videoHeight)
+        }
+        await videoRef.current.play()
+        console.log('Video playing')
+      } else {
+        console.error('videoRef.current is null')
+      }
+
+      // @ts-ignore
       const detector = new BarcodeDetector({ formats: ['qr_code'] })
 
       scanIntervalRef.current = setInterval(async () => {
@@ -103,23 +114,10 @@ export default function NewMachinePage() {
         }
       }, 500)
     } catch (err: any) {
-    console.error('Camera error:', err)
-    setScanError('ไม่สามารถเปิดกล้องได้: ' + err.name + ' - ' + err.message)
-    setScanning(false)
+      console.error('Camera error:', err)
+      setScanError('ไม่สามารถเปิดกล้องได้: ' + err.name + ' - ' + err.message)
+      setScanning(false)
     }
-  }
-  }
-
-  function stopScanning() {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current)
-      scanIntervalRef.current = null
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
-      streamRef.current = null
-    }
-    setScanning(false)
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -181,7 +179,6 @@ export default function NewMachinePage() {
       </div>
 
       <div className="p-4 sm:p-6 max-w-md mx-auto space-y-5">
-        {/* ส่วนสแกน MAC address */}
         <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             MAC Address ของเครื่อง
@@ -306,3 +303,7 @@ export default function NewMachinePage() {
     </div>
   )
 }
+
+
+
+
