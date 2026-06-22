@@ -1,152 +1,172 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 interface Machine {
-  id: string
   machine_id: string
   name: string
-  product_name: string
-  price: number
-  stock: number
-  is_active: boolean
   status: string
-  last_seen: string | null
+  location: string
+  last_seen: string
+}
+
+interface StatCard {
+  label: string
+  value: string
+  sub?: string
+  color: string
+}
+
+function timeAgo(dateStr: string) {
+  if (!dateStr) return '-'
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'เมื่อกี้'
+  if (mins < 60) return `${mins} นาทีที่แล้ว`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} ชม.ที่แล้ว`
+  return `${Math.floor(hrs / 24)} วันที่แล้ว`
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
   const supabase = createClient()
+  const [stats, setStats] = useState({ members: 0, online: 0, total: 0, revenue: 0, today: 0, yesterday: 0 })
   const [machines, setMachines] = useState<Machine[]>([])
+  const [topMachines, setTopMachines] = useState<{ id: string, revenue: number }[]>([])
   const [loading, setLoading] = useState(true)
-  const [shopName, setShopName] = useState('')
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
+  useEffect(() => { loadDashboard() }, [])
 
-      const { data: shop } = await supabase
-        .from('shops')
-        .select('id, shop_name')
-        .eq('owner_id', user.id)
-        .single()
+  async function loadDashboard() {
+    setLoading(true)
+    const [membersRes, machinesRes, txRes] = await Promise.all([
+      supabase.from('users').select('id', { count: 'exact', head: true }),
+      supabase.from('machines').select('machine_id, name, status, location, last_seen').order('machine_id'),
+      supabase.from('transactions').select('amount, created_at, machine_id, status').limit(5000),
+    ])
 
-      if (!shop) {
-        router.push('/login')
-        return
-      }
+    const allTx = txRes.data || []
+    const revenue = allTx.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0)
+    const today = new Date().toDateString()
+    const yesterday = new Date(Date.now() - 86400000).toDateString()
+    const todayCount = allTx.filter(t => new Date(t.created_at).toDateString() === today).length
+    const yestCount = allTx.filter(t => new Date(t.created_at).toDateString() === yesterday).length
 
-      setShopName(shop.shop_name)
+    const online = (machinesRes.data || []).filter(m => m.status === 'online').length
 
-      const { data: machinesData } = await supabase
-        .from('machines')
-        .select('*')
-        .eq('shop_id', shop.id)
-        .order('machine_id')
+    // Top 5 เครื่อง
+    const machineRev: Record<string, number> = {}
+    allTx.forEach(t => {
+      if (!t.machine_id) return
+      machineRev[t.machine_id] = (machineRev[t.machine_id] || 0) + (parseFloat(t.amount) || 0)
+    })
+    const top = Object.entries(machineRev).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, revenue]) => ({ id, revenue }))
 
-      setMachines(machinesData || [])
-      setLoading(false)
-    }
-    load()
-  }, [])
-
-  async function handleLogout() {
-    await supabase.auth.signOut()
-    router.push('/login')
+    setStats({
+      members: membersRes.count || 0,
+      online,
+      total: machinesRes.data?.length || 0,
+      revenue,
+      today: todayCount,
+      yesterday: yestCount,
+    })
+    setMachines(machinesRes.data || [])
+    setTopMachines(top)
+    setLoading(false)
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+      <div className="spinner" />
+    </div>
+  )
 
-  const totalStock = machines.reduce((sum, m) => sum + (m.stock || 0), 0)
-  const activeMachines = machines.filter(m => m.is_active).length
-  const onlineMachines = machines.filter(m => m.status === 'online').length
+  const maxRev = topMachines[0]?.revenue || 1
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-lg text-gray-900">{shopName}</h1>
-          <p className="text-sm text-gray-500">Admin Dashboard</p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="text-sm text-red-600 font-medium"
-        >
-          ออกจากระบบ
-        </button>
+    <div>
+      {/* Stats */}
+      <div className="stats-grid">
+        {[
+          { label: 'สมาชิกทั้งหมด', value: stats.members.toLocaleString(), color: '#60a5fa' },
+          { label: 'เครื่อง Online', value: stats.online.toString(), sub: `จาก ${stats.total} เครื่อง`, color: '#4ade80' },
+          { label: 'รายได้รวม', value: `฿${stats.revenue.toFixed(0)}`, color: '#fbbf24' },
+          { label: 'วันนี้', value: stats.today.toString(), sub: `เมื่อวาน ${stats.yesterday}`, color: '#f87171' },
+        ].map(s => (
+          <div key={s.label} className="stat-card">
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>{s.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: s.color }}>{s.value}</div>
+            {s.sub && <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{s.sub}</div>}
+          </div>
+        ))}
       </div>
 
-      <div className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto">
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-4">
-            <p className="text-sm text-gray-500">เครื่องทั้งหมด</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{machines.length}</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-4">
-            <p className="text-sm text-gray-500">ออนไลน์</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{onlineMachines}</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-4">
-            <p className="text-sm text-gray-500">สต็อกรวม</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{totalStock}</p>
-          </div>
-        </div>
-
-        <div>
-
-	<div className="flex items-center justify-between mb-3">
-  	   <h2 className="font-semibold text-gray-900">เครื่องของฉัน</h2>
-  	<button
-    	   onClick={() => router.push('/dashboard/machines/new')}
-    	   className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-indigo-700 active:scale-95 transition"
- 	 >
-    	+ เพิ่มเครื่อง
-  	   </button>
-	</div>
-
-          <div className="space-y-3">
-            {machines.map(machine => (
-              <div
-                key={machine.id}
-                onClick={() => router.push(`/dashboard/machines/${machine.machine_id}`)}
-                className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center justify-between cursor-pointer hover:border-indigo-300 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-2.5 h-2.5 rounded-full ${machine.status === 'online' ? 'bg-green-500' : 'bg-gray-300'}`} />
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm sm:text-base">{machine.name || machine.machine_id}</p>
-                    <p className="text-sm text-gray-500">{machine.product_name} · ฿{machine.price}</p>
-                  </div>
+      {/* Top 5 + สถานะเครื่อง */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        {/* Top 5 */}
+        <div className="card-box" style={{ padding: 20 }}>
+          <div className="section-title">Top 5 เครื่อง (รายได้)</div>
+          {topMachines.length === 0
+            ? <p style={{ color: '#475569', fontSize: 13 }}>ยังไม่มีข้อมูล</p>
+            : topMachines.map((m, i) => (
+              <div key={m.id} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, color: '#f1f5f9' }}>{i + 1}. {m.id}</span>
+                  <span style={{ fontSize: 13, color: '#fbbf24' }}>฿{m.revenue.toFixed(0)}</span>
                 </div>
-                <div className="text-right">
-                  <p className={`text-sm font-medium ${machine.stock === 0 ? 'text-red-600' : 'text-gray-700'}`}>
-                    สต็อก {machine.stock}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {machine.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
-                  </p>
+                <div style={{ background: '#334155', borderRadius: 4, height: 6 }}>
+                  <div style={{ background: '#2563eb', borderRadius: 4, height: 6, width: `${(m.revenue / maxRev * 100).toFixed(0)}%` }} />
                 </div>
               </div>
             ))}
+        </div>
 
-            {machines.length === 0 && (
-              <div className="text-center text-gray-400 py-12">
-                ยังไม่มีเครื่องในร้านนี้
+        {/* เครื่องออนไลน์ */}
+        <div className="card-box" style={{ padding: 20 }}>
+          <div className="section-title">สถานะเครื่อง</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {machines.slice(0, 6).map(m => (
+              <div key={m.machine_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{m.name || m.machine_id}</div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>{m.location || '-'} · {timeAgo(m.last_seen)}</div>
+                </div>
+                <span className={`badge ${m.status === 'online' ? 'badge-online' : 'badge-offline'}`}>
+                  {m.status === 'online' ? '● Online' : '● Offline'}
+                </span>
               </div>
-            )}
+            ))}
           </div>
         </div>
+      </div>
+
+      {/* ตารางเครื่องทั้งหมด */}
+      <div className="section-title">เครื่องทั้งหมด</div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ชื่อเครื่อง</th>
+              <th>Machine ID</th>
+              <th>สถานะ</th>
+              <th>IP</th>
+              <th>Last Seen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {machines.length === 0
+              ? <tr><td colSpan={5} style={{ textAlign: 'center', color: '#475569', padding: 24 }}>ไม่มีเครื่อง</td></tr>
+              : machines.map(m => (
+                <tr key={m.machine_id}>
+                  <td style={{ fontWeight: 600, color: '#f1f5f9' }}>{m.name || '-'}</td>
+                  <td style={{ color: '#94a3b8', fontSize: 12 }}>{m.machine_id}</td>
+                  <td><span className={`badge ${m.status === 'online' ? 'badge-online' : 'badge-offline'}`}>{m.status === 'online' ? '● Online' : '● Offline'}</span></td>
+                  <td>{m.location || '-'}</td>
+                  <td style={{ color: '#64748b', fontSize: 12 }}>{timeAgo(m.last_seen)}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )
