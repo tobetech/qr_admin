@@ -7,6 +7,8 @@ interface LoyaltySettings {
   id: number
   is_enabled: boolean
   points_per_baht: number
+  rewards_enabled: boolean
+  promotions_enabled: boolean
 }
 
 interface LoyaltyTier {
@@ -56,6 +58,8 @@ export default function LoyaltyPage() {
         .update({
           is_enabled: settings.is_enabled,
           points_per_baht: settings.points_per_baht,
+          rewards_enabled: settings.rewards_enabled,
+          promotions_enabled: settings.promotions_enabled,
         })
         .eq('id', 1)
       if (err) throw new Error(err.message)
@@ -178,6 +182,54 @@ export default function LoyaltyPage() {
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
             เช่น ใส่ 1 = ซื้อสินค้า ฿1 ได้ 1 คะแนน, ใส่ 0.5 = ซื้อ ฿2 ได้ 1 คะแนน
           </div>
+        </div>
+
+        {/* เปิด/ปิดหน้าแลกคะแนน */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <div
+              onClick={() => settings && setSettings(s => s ? { ...s, rewards_enabled: !s.rewards_enabled } : s)}
+              style={{
+                width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
+                position: 'relative', background: settings?.rewards_enabled ? '#16a34a' : '#334155',
+                transition: 'background 0.2s', flexShrink: 0,
+              }}
+            >
+              <div style={{
+                position: 'absolute', top: 3, width: 20, height: 20,
+                background: '#fff', borderRadius: '50%', transition: 'left 0.2s',
+                left: settings?.rewards_enabled ? '25px' : '3px',
+              }} />
+            </div>
+            <div>
+              <span style={{ color: '#f1f5f9', fontSize: 14 }}>เปิดหน้าแลกคะแนนสะสม</span>
+              <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>แสดง/ซ่อนปุ่มแลกคะแนนในหน้าเมนูของ qr_member</p>
+            </div>
+          </label>
+        </div>
+
+        {/* เปิด/ปิดหน้าโปรโมชั่น */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <div
+              onClick={() => settings && setSettings(s => s ? { ...s, promotions_enabled: !s.promotions_enabled } : s)}
+              style={{
+                width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
+                position: 'relative', background: settings?.promotions_enabled ? '#16a34a' : '#334155',
+                transition: 'background 0.2s', flexShrink: 0,
+              }}
+            >
+              <div style={{
+                position: 'absolute', top: 3, width: 20, height: 20,
+                background: '#fff', borderRadius: '50%', transition: 'left 0.2s',
+                left: settings?.promotions_enabled ? '25px' : '3px',
+              }} />
+            </div>
+            <div>
+              <span style={{ color: '#f1f5f9', fontSize: 14 }}>เปิดหน้าโปรโมชั่น / สิทธิประโยชน์</span>
+              <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>แสดง/ซ่อนปุ่มโปรโมชั่นในหน้าเมนูของ qr_member</p>
+            </div>
+          </label>
         </div>
 
         {error && <div className="msg-error">{error}</div>}

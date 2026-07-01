@@ -41,6 +41,11 @@ const navItems = [
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
     </svg>
   )},
+  { id: 'topup-promotions', label: 'โปรโมชั่นเติมเงิน', href: '/dashboard/topup-promotions', icon: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+    </svg>
+  )},
   { id: 'rewards', label: 'สินค้าแลกคะแนน', href: '/dashboard/rewards', icon: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="8" r="6"/>
@@ -77,6 +82,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/transactions': 'ธุรกรรม',
   '/dashboard/topup': 'เติมเงินสมาชิก',
   '/dashboard/promotions': 'โปรโมชั่น',
+  '/dashboard/topup-promotions': 'โปรโมชั่นเติมเงิน',
   '/dashboard/rewards': 'สินค้าแลกคะแนน',
   '/dashboard/loyalty': 'ระบบคะแนน',
   '/dashboard/report': 'รายงานรายเดือน',
@@ -110,7 +116,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   function NavItem({ item }: { item: typeof navItems[0] }) {
     const isActive = pathname === item.href ||
-      (item.href !== '/dashboard' && pathname.startsWith(item.href))
+      (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
     return (
       <button
         className={`nav-item ${isActive ? 'active' : ''}`}
